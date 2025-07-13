@@ -1,0 +1,10 @@
+*env
+*.env
+
+# Ignore SQLite database files
+*.sqlite3
+*.db
+
+# Ignore Django migration files
+**/migrations/
+!*/migrations/__init__.py
