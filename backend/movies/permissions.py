@@ -1,169 +1,179 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
+from rest_framework.exceptions import PermissionDenied
+
+# 🔹 Mixin to reuse authentication check
+class RequireAuthenticated:
+    def check_auth(self, request):
+        if not request.user.is_authenticated:
+            raise PermissionDenied("Authentication required.")
+
 
 # 🔹 Only movie_owner role
-class IsMovieOwner(BasePermission):
-    """
-    Allows access only to users with role 'movie_owner'
-    """
+class IsMovieOwner(BasePermission, RequireAuthenticated):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'movie_owner'
+        self.check_auth(request)
+        if request.user.role != 'movie_owner':
+            raise PermissionDenied("Only movie owners are allowed.")
+        return True
 
 
 # 🔹 Movie Owner + Creator of the movie
-class IsMovieOwnerAndCreator(BasePermission):
-    """
-    Only the creator who is a movie_owner can access
-    """
+class IsMovieOwnerAndCreator(BasePermission, RequireAuthenticated):
+    def has_permission(self, request, view):
+        self.check_auth(request)
+        return True
+
     def has_object_permission(self, request, view, obj):
-        return request.user == obj.created_by and request.user.role == 'movie_owner'
+        self.check_auth(request)
+        if request.user.role != 'movie_owner' or request.user != obj.created_by:
+            raise PermissionDenied("Only the movie creator (movie owner) can perform this action.")
+        return True
 
 
 # 🔹 Admin, Superuser, or Staff
-class IsAdminOrStaff(BasePermission):
-    """
-    Only for admin, superuser, or staff members
-    """
+class IsAdminOrStaff(BasePermission, RequireAuthenticated):
     def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated and (
-            request.user.is_superuser or request.user.is_staff or request.user.role == 'admin'
-        )
+        self.check_auth(request)
+        if not (request.user.is_superuser or request.user.is_staff or request.user.role == 'admin'):
+            raise PermissionDenied("Only admin, superuser, or staff can access this.")
+        return True
 
 
-# 🔹 Theater Owner only
-class IsTheaterOwner(BasePermission):
-    """
-    Only theater_owner role allowed
-    """
+# 🔹 Only theater_owner role
+class IsTheaterOwner(BasePermission, RequireAuthenticated):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'theater_owner'
+        self.check_auth(request)
+        if request.user.role != 'theater_owner':
+            raise PermissionDenied("Only theater owners are allowed.")
+        return True
+
+
+# 🔹 Regular user only
+class IsRegularUser(BasePermission, RequireAuthenticated):
+    def has_permission(self, request, view):
+        self.check_auth(request)
+        if request.user.role != 'user':
+            raise PermissionDenied("Only regular users are allowed.")
+        return True
 
 
 # 🔹 Creator of the object or read-only access
-class IsOwnerOrReadOnly(BasePermission):
-    """
-    Full access to owner, read-only for others
-    """
+class IsOwnerOrReadOnly(BasePermission, RequireAuthenticated):
     def has_object_permission(self, request, view, obj):
         if request.method in SAFE_METHODS:
             return True
-        return obj.created_by == request.user
+        self.check_auth(request)
+        if request.user != obj.created_by:
+            raise PermissionDenied("Only the owner can modify this resource.")
+        return True
 
 
-# 🔹 Either movie owner (creator) or admin/superuser/staff
-class IsMovieOwnerOrAdmin(BasePermission):
-    """
-    Movie creator OR superuser/staff/admin
-    """
+# 🔹 Object owner only (full access)
+class IsOwner(BasePermission, RequireAuthenticated):
     def has_object_permission(self, request, view, obj):
-        return (
-            request.user.is_authenticated and (
-                request.user == obj.created_by or 
-                request.user.is_superuser or 
-                request.user.is_staff or 
-                request.user.role == 'admin'
-            )
-        )
+        self.check_auth(request)
+        if request.user != obj.created_by:
+            raise PermissionDenied("Only the owner can access this resource.")
+        return True
+
+
+# 🔹 Movie creator or admin/superuser/staff
+class IsMovieOwnerOrAdmin(BasePermission, RequireAuthenticated):
+    def has_object_permission(self, request, view, obj):
+        self.check_auth(request)
+        if not (
+            request.user == obj.created_by or
+            request.user.is_superuser or
+            request.user.is_staff or
+            request.user.role == 'admin'
+        ):
+            raise PermissionDenied("Only the movie creator or admin/superuser/staff can perform this action.")
+        return True
 
 
 # 🔹 Only the user themselves or admin
-class IsSelfOrAdmin(BasePermission):
-    """
-    User can modify their own profile or admin can
-    """
+class IsSelfOrAdmin(BasePermission, RequireAuthenticated):
     def has_object_permission(self, request, view, obj):
-        return (
+        self.check_auth(request)
+        if not (
             request.user == obj or
             request.user.is_superuser or
             request.user.is_staff or
             request.user.role == 'admin'
-        )
+        ):
+            raise PermissionDenied("Only the user or admin can perform this action.")
+        return True
 
 
 # 🔹 Authenticated and active user
-class IsAuthenticatedAndActive(BasePermission):
-    """
-    Requires the user to be authenticated and not disabled
-    """
+class IsAuthenticatedAndActive(BasePermission, RequireAuthenticated):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.is_active
+        self.check_auth(request)
+        if not request.user.is_active:
+            raise PermissionDenied("Inactive users cannot access this.")
+        return True
 
 
 # 🔹 Only review creator can modify/delete
-class IsReviewAuthor(BasePermission):
-    """
-    Only the review author can update/delete the review
-    """
+class IsReviewAuthor(BasePermission, RequireAuthenticated):
     def has_object_permission(self, request, view, obj):
-        return obj.user == request.user
+        self.check_auth(request)
+        if obj.user != request.user:
+            raise PermissionDenied("Only the review author can modify or delete this review.")
+        return True
 
 
-
-
-class IsAdminUser(BasePermission):
-    """Allow only admin role."""
+# 🔹 Admin role only
+class IsAdminUser(BasePermission, RequireAuthenticated):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'admin'
+        self.check_auth(request)
+        if request.user.role != 'admin':
+            raise PermissionDenied("Only admin users are allowed.")
+        return True
 
 
-class IsTheaterOwner(BasePermission):
-    """Allow only theater owners."""
+# 🔹 Only superuser
+class IsSuperUser(BasePermission, RequireAuthenticated):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'theater_owner'
+        self.check_auth(request)
+        if not request.user.is_superuser:
+            raise PermissionDenied("Only superusers are allowed.")
+        return True
 
 
-class IsMovieOwner(BasePermission):
-    """Allow only movie owners."""
+# 🔹 Superuser or admin
+class IsSuperUserOrAdmin(BasePermission, RequireAuthenticated):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'movie_owner'
+        self.check_auth(request)
+        if not (request.user.is_superuser or request.user.role == 'admin'):
+            raise PermissionDenied("Only superuser or admin users are allowed.")
+        return True
 
 
-class IsRegularUser(BasePermission):
-    """Allow only regular users."""
+# 🔹 Staff or admin
+class IsStaffOrAdmin(BasePermission, RequireAuthenticated):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'user'
+        self.check_auth(request)
+        if not (request.user.is_staff or request.user.role == 'admin'):
+            raise PermissionDenied("Only staff or admin users are allowed.")
+        return True
 
 
-class IsAdminOrReadOnly(BasePermission):
-    """Allow only admin to write, others can read-only."""
+# 🔹 Admin can write, others read-only
+class IsAdminOrReadOnly(BasePermission, RequireAuthenticated):
     def has_permission(self, request, view):
         if request.method in SAFE_METHODS:
             return True
-        return request.user.is_authenticated and request.user.role == 'admin'
+        self.check_auth(request)
+        if request.user.role != 'admin':
+            raise PermissionDenied("Only admin users can perform write actions.")
+        return True
 
 
-class IsOwnerOrReadOnly(BasePermission):
-    """Allow object creator to write; others read-only."""
-    def has_object_permission(self, request, view, obj):
-        if request.method in SAFE_METHODS:
-            return True
-        return request.user == obj.created_by
-
-
-class IsOwner(BasePermission):
-    """Only allow object creator to access/modify."""
-    def has_object_permission(self, request, view, obj):
-        return request.user == obj.created_by
-
-
-class IsSuperUserOrAdmin(BasePermission):
-    """Allow only superuser or admin role."""
+# 🔹 Authenticated users can read-only
+class IsAuthenticatedReadOnly(BasePermission, RequireAuthenticated):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and (request.user.is_superuser or request.user.role == 'admin')
-
-
-class IsSuperUser(BasePermission):
-    """Allow only Django superuser."""
-    def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.is_superuser
-
-
-class IsStaffOrAdmin(BasePermission):
-    """Allow Django staff or admin role."""
-    def has_permission(self, request, view):
-        return request.user.is_authenticated and (request.user.is_staff or request.user.role == 'admin')
-
-
-class IsAuthenticatedReadOnly(BasePermission):
-    """Authenticated users can read-only access."""
-    def has_permission(self, request, view):
-        return request.user.is_authenticated and request.method in SAFE_METHODS
+        self.check_auth(request)
+        if request.method not in SAFE_METHODS:
+            raise PermissionDenied("Read-only access is allowed.")
+        return True
