@@ -4,6 +4,9 @@ from rest_framework.exceptions import PermissionDenied
 
 # 🔹 Reusable authentication check mixin
 class RequireAuthenticated:
+    """
+    Mixin for enforcing authentication manually in permission classes.
+    """
     def check_auth(self, request):
         if not request.user or not request.user.is_authenticated:
             raise PermissionDenied("Authentication required.")
@@ -45,3 +48,15 @@ class IsTicketOwner(BasePermission, RequireAuthenticated):
         if obj.booking.user == request.user or request.user.is_staff or request.user.is_superuser:
             return True
         raise PermissionDenied("You do not have permission to access this ticket.")
+
+class IsTheaterOwnerOfShowSeatPricing(BasePermission, RequireAuthenticated):
+    """
+    Allows only the owner of the theater (via show) or staff/superuser.
+    """
+    def has_object_permission(self, request, view, obj):
+        self.check_auth(request)
+
+        if obj.show.theater.created_by == request.user or request.user.is_staff or request.user.is_superuser:
+            return True
+
+        raise PermissionDenied("You do not have permission to access or modify this seat pricing.")

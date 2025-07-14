@@ -1,33 +1,31 @@
 from django.urls import path
 from .views import (
     SeatListView,
-    BookingCreateView,
-    BookingListView,
-    BookingDetailView,
-    PaymentCreateView,
-    PaymentDetailView,
-    TicketListView,
-    TicketDetailView,
-    ShowSeatPricingListView,
+    BookingCreateView, BookingListView, BookingDetailView,
+    PaymentCreateView, PaymentDetailView,
+    TicketListView, TicketDetailView,
+    ShowSeatPricingListView, ShowSeatPricingCreateView, ShowSeatPricingUpdateView
 )
 
 urlpatterns = [
-    # 🔹 Seat-related
-    path('shows/<int:show_id>/seats/', SeatListView.as_view(), name='seat-list'),
+    # Seats
+    path('seats/<int:show_id>/', SeatListView.as_view(), name='available-seats'),
 
-    # 🔹 Booking
+    # Bookings
     path('bookings/', BookingListView.as_view(), name='booking-list'),
     path('bookings/create/', BookingCreateView.as_view(), name='booking-create'),
     path('bookings/<int:pk>/', BookingDetailView.as_view(), name='booking-detail'),
 
-    # 🔹 Payment
+    # Payments
     path('payments/create/', PaymentCreateView.as_view(), name='payment-create'),
     path('payments/<int:pk>/', PaymentDetailView.as_view(), name='payment-detail'),
 
-    # 🔹 Ticket
+    # Tickets
     path('tickets/', TicketListView.as_view(), name='ticket-list'),
     path('tickets/<int:pk>/', TicketDetailView.as_view(), name='ticket-detail'),
 
-    # 🔹 Seat Pricing
-    path('shows/<int:show_id>/pricing/', ShowSeatPricingListView.as_view(), name='show-seat-pricing'),
+    # Seat Pricing
+    path('pricing/<int:show_id>/', ShowSeatPricingListView.as_view(), name='show-seat-pricing'),
+    path('pricing/create/', ShowSeatPricingCreateView.as_view(), name='show-seat-pricing-create'),
+    path('pricing/<int:pk>/update/', ShowSeatPricingUpdateView.as_view(), name='show-seat-pricing-update'),
 ]

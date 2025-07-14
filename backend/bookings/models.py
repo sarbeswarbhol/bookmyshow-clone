@@ -56,7 +56,11 @@ class Seat(models.Model):
     is_booked = models.BooleanField(default=False)
 
     def get_price(self):
-        return ShowSeatPricing.objects.get(show=self.show, seat_type=self.seat_type).price
+        pricing = ShowSeatPricing.objects.filter(show=self.show, seat_type=self.seat_type).first()
+        if pricing:
+            return pricing.price
+        return 0 
+
 
     def __str__(self):
         return f"{self.seat_number} ({self.seat_type}) - {self.show}"
@@ -69,6 +73,7 @@ class Booking(models.Model):
     total_price = models.DecimalField(max_digits=8, decimal_places=2)
     created_at = models.DateTimeField(auto_now_add=True)
 
+   
     def __str__(self):
         return f"Booking #{self.id} by {self.user.username}"
 

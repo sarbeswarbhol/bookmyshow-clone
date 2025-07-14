@@ -1,4 +1,5 @@
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions
+from rest_framework.exceptions import ValidationError, PermissionDenied
 from rest_framework.response import Response
 from .models import Seat, Booking, Payment, Ticket, ShowSeatPricing
 from .serializers import (
@@ -12,19 +13,24 @@ from .permissions import (
     IsRegularUser,
     IsBookingOwnerOrReadOnly,
     IsPaymentOwner,
-    IsTicketOwner
+    IsTicketOwner,
+    IsTheaterOwnerOfShowSeatPricing
 )
 from django.utils.timezone import now
-from rest_framework.exceptions import ValidationError
-import uuid
+
 
 # 🔹 List available seats for a show
 class SeatListView(generics.ListAPIView):
     serializer_class = SeatSerializer
 
     def get_queryset(self):
-        show_id = self.kwargs['show_id']
-        return Seat.objects.filter(show_id=show_id, is_booked=False)
+        return Seat.objects.filter(show_id=self.kwargs['show_id'], is_booked=False)
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        pricing_qs = ShowSeatPricing.objects.filter(show_id=self.kwargs['show_id'])
+        context['pricing_dict'] = {p.seat_type: p.price for p in pricing_qs}
+        return context
 
 
 # 🔹 Create a booking
@@ -52,7 +58,7 @@ class BookingDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated, IsBookingOwnerOrReadOnly]
 
 
-# 🔹 Create a payment (transaction_id auto-generated)
+# 🔹 Create a payment
 class PaymentCreateView(generics.CreateAPIView):
     serializer_class = PaymentSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -87,7 +93,30 @@ class TicketDetailView(generics.RetrieveAPIView):
 # 🔹 List seat pricing for a show
 class ShowSeatPricingListView(generics.ListAPIView):
     serializer_class = ShowSeatPricingSerializer
+    permission_classes = [IsTheaterOwnerOfShowSeatPricing]
 
     def get_queryset(self):
-        show_id = self.kwargs['show_id']
-        return ShowSeatPricing.objects.filter(show_id=show_id)
+        return ShowSeatPricing.objects.filter(show_id=self.kwargs['show_id'])
+
+
+# 🔹 Create seat pricing
+class ShowSeatPricingCreateView(generics.CreateAPIView):
+    serializer_class = ShowSeatPricingSerializer
+    permission_classes = [permissions.IsAuthenticated, IsTheaterOwnerOfShowSeatPricing]
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+
+# 🔹 Update pricing
+class ShowSeatPricingUpdateView(generics.UpdateAPIView):
+    queryset = ShowSeatPricing.objects.all()
+    serializer_class = ShowSeatPricingSerializer
+    permission_classes = [permissions.IsAuthenticated, IsTheaterOwnerOfShowSeatPricing]
+    lookup_field = 'pk'
+
+    def get_object(self):
+        obj = super().get_object()
+        if obj.show.created_by != self.request.user:
+            raise PermissionDenied("You do not have permission to update this seat pricing.")
+        return obj

@@ -10,9 +10,10 @@ class ShowSeatPricingSerializer(serializers.ModelSerializer):
     class Meta:
         model = ShowSeatPricing
         fields = ['id', 'show', 'seat_type', 'price']
+        read_only_fields = ['show', 'seat_type']  # remove if your view handles editing safely
 
 
-# 🔹 Seat Serializer
+# 🔹 Seat Serializer with optimized pricing
 class SeatSerializer(serializers.ModelSerializer):
     price = serializers.SerializerMethodField()
 
@@ -21,10 +22,8 @@ class SeatSerializer(serializers.ModelSerializer):
         fields = ['id', 'seat_number', 'seat_type', 'price', 'is_booked']
 
     def get_price(self, obj):
-        try:
-            return ShowSeatPricing.objects.get(show=obj.show, seat_type=obj.seat_type).price
-        except ShowSeatPricing.DoesNotExist:
-            return None
+        pricing_dict = self.context.get('pricing_dict', {})
+        return pricing_dict.get(obj.seat_type)
 
 
 # 🔹 Ticket Serializer
@@ -70,7 +69,7 @@ class BookingSerializer(serializers.ModelSerializer):
             if seat.is_booked:
                 raise serializers.ValidationError(f"Seat {seat.seat_number} is already booked.")
 
-        # Calculate total price dynamically
+        # Calculate total price
         total_price = 0
         for seat in seats:
             try:
@@ -84,7 +83,9 @@ class BookingSerializer(serializers.ModelSerializer):
         booking.seats.set(seats)
 
         # Mark seats as booked
-        Seat.objects.filter(id__in=[seat.id for seat in seats]).update(is_booked=True)
+        for seat in seats:
+            seat.is_booked = True
+            seat.save()
 
         return booking
 
@@ -97,8 +98,19 @@ class PaymentSerializer(serializers.ModelSerializer):
         read_only_fields = ['amount', 'status', 'paid_at', 'transaction_id']
 
     def create(self, validated_data):
+        user = self.context['request'].user
         booking = validated_data['booking']
+
+        # Booking must belong to user
+        if booking.user != user:
+            raise serializers.ValidationError("You are not allowed to pay for this booking.")
+
+        # Prevent duplicate payments
+        if Payment.objects.filter(booking=booking).exists():
+            raise serializers.ValidationError("Payment already exists for this booking.")
+
         transaction_id = str(uuid.uuid4()).replace('-', '')[:12].upper()
+
         return Payment.objects.create(
             booking=booking,
             amount=booking.total_price,
