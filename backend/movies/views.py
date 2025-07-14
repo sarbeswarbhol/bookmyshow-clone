@@ -153,18 +153,26 @@ class ReviewDeleteView(generics.DestroyAPIView):
     def delete(self, request, *args, **kwargs):
         instance = self.get_object()
         self.perform_destroy(instance)
-        return Response({"message": "Review soft-deleted successfully."}, status=status.HTTP_200_OK)
+        return Response({"message": "Review deleted successfully."}, status=status.HTTP_200_OK)
 
 class ReviewRestoreView(generics.UpdateAPIView):
+    queryset = Review.all_objects.all()  # ✅ allows soft-deleted reviews
     serializer_class = ReviewSerializer
     permission_classes = [IsReviewAuthor]
     lookup_field = 'pk'
 
-    def get_queryset(self):
-        return Review.objects.filter(user=self.request.user, movie__slug=self.kwargs['slug'], is_deleted=True)
-
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
+
+        if not instance.is_deleted:
+            return Response(
+                {"detail": "Review is already active."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         instance.is_deleted = False
         instance.save()
-        return Response({"message": "Review restored successfully."}, status=status.HTTP_200_OK)
+        return Response(
+            {"message": "Review restored successfully."},
+            status=status.HTTP_200_OK
+        )
