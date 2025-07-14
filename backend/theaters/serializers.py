@@ -21,4 +21,5 @@ class ShowSerializer(serializers.ModelSerializer):
     class Meta:
         model = Show
         fields = ['id', 'theater', 'movie', 'movie_id', 'show_time', 'created_by']
-        read_only_fields = ['created_by']
+        read_only_fields = ['theater', 'created_by']
+
