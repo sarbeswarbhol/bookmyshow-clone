@@ -21,9 +21,9 @@ class SeatAdmin(admin.ModelAdmin):
 
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'show', 'total_price', 'created_at')
-    list_filter = ('show__movie', 'show__theater')
-    search_fields = ('user__username', 'id', 'show__movie__title', 'show__theater__name')
+    list_display = ('id', 'user', 'show', 'total_price', 'created_at', 'is_cancelled')
+    list_filter = ('show__movie', 'show__theater', 'is_cancelled', 'created_at')
+    search_fields = ('user__username', 'id', 'show__movie__title', 'show__theater__name', 'is_cancelled')
     date_hierarchy = 'created_at'
     autocomplete_fields = ['user', 'show', 'seats']
 

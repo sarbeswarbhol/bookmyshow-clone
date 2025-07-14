@@ -1,4 +1,5 @@
 from rest_framework import generics, permissions
+from rest_framework.views import APIView
 from rest_framework.exceptions import ValidationError, PermissionDenied
 from rest_framework.response import Response
 from .models import Seat, Booking, Payment, Ticket, ShowSeatPricing
@@ -48,7 +49,8 @@ class BookingListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated, IsRegularUser]
 
     def get_queryset(self):
-        return Booking.objects.filter(user=self.request.user)
+        return Booking.objects.filter(user=self.request.user, is_cancelled=False)
+
 
 
 # 🔹 Retrieve/Update/Delete a booking
@@ -121,3 +123,33 @@ class ShowSeatPricingUpdateView(generics.UpdateAPIView):
             raise PermissionDenied("You do not have permission to update this seat pricing.")
         return obj
   
+class PaymentUpdateView(generics.UpdateAPIView):
+    queryset = Payment.objects.all()
+    serializer_class = PaymentSerializer
+    permission_classes = [permissions.IsAuthenticated, IsPaymentOwner]
+    lookup_field = 'pk'
+    
+class BookingCancelView(APIView):
+    permission_classes = [IsBookingOwnerOrReadOnly]
+
+    def post(self, request, pk):
+        try:
+            booking = Booking.objects.get(pk=pk, user=request.user)
+        except Booking.DoesNotExist:
+            return Response({"detail": "Booking not found."}, status=404)
+
+        if booking.is_cancelled:
+            return Response({"detail": "Booking already cancelled."}, status=400)
+
+        if now() > booking.show.show_time:
+            raise ValidationError("Cannot cancel booking after the show has started.")
+
+        booking.is_cancelled = True
+        booking.save()
+
+        # Release booked seats
+        for seat in booking.seats.all():
+            seat.is_booked = False
+            seat.save()
+
+        return Response({"detail": "Booking cancelled and seats released."}, status=200)

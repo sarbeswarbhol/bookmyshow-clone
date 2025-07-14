@@ -3,6 +3,7 @@ from .models import Seat, Booking, Payment, Ticket, ShowSeatPricing
 from theaters.models import Show
 from django.utils.timezone import now
 from datetime import timedelta
+from django.db import transaction
 import uuid
 
 # 🔹 Show Seat Pricing Serializer
@@ -10,7 +11,7 @@ class ShowSeatPricingSerializer(serializers.ModelSerializer):
     class Meta:
         model = ShowSeatPricing
         fields = ['id', 'show', 'seat_type', 'price']
-        read_only_fields = ['show', 'seat_type']  # remove if your view handles editing safely
+        read_only_fields = []
 
 
 # 🔹 Seat Serializer with optimized pricing
@@ -62,32 +63,40 @@ class BookingSerializer(serializers.ModelSerializer):
         show = validated_data['show']
         seats = validated_data['seats']
 
-        # Check seat validity
-        for seat in seats:
-            if seat.show != show:
-                raise serializers.ValidationError(f"Seat {seat.seat_number} does not belong to this show.")
-            if seat.is_booked:
-                raise serializers.ValidationError(f"Seat {seat.seat_number} is already booked.")
+        # Lock seats with transaction
+        with transaction.atomic():
+            locked_seats = Seat.objects.select_for_update().filter(id__in=[s.id for s in seats])
 
-        # Calculate total price
-        total_price = 0
-        for seat in seats:
-            try:
-                price = ShowSeatPricing.objects.get(show=show, seat_type=seat.seat_type).price
-                total_price += price
-            except ShowSeatPricing.DoesNotExist:
-                raise serializers.ValidationError(f"No pricing defined for seat type {seat.seat_type} in this show.")
+            # Check for mismatches or already booked seats
+            errors = []
+            for seat in locked_seats:
+                if seat.show != show:
+                    errors.append(f"Seat {seat.seat_number} does not belong to this show.")
+                if seat.is_booked:
+                    errors.append(f"Seat {seat.seat_number} is already booked.")
+            if errors:
+                raise serializers.ValidationError({"seats": errors})
 
-        # Create booking
-        booking = Booking.objects.create(user=user, show=show, total_price=total_price)
-        booking.seats.set(seats)
+            # Calculate total price
+            total_price = 0
+            for seat in locked_seats:
+                try:
+                    price = ShowSeatPricing.objects.get(show=show, seat_type=seat.seat_type).price
+                    total_price += price
+                except ShowSeatPricing.DoesNotExist:
+                    raise serializers.ValidationError(f"No pricing defined for seat type {seat.seat_type}.")
 
-        # Mark seats as booked
-        for seat in seats:
-            seat.is_booked = True
-            seat.save()
+            # Create booking
+            booking = Booking.objects.create(user=user, show=show, total_price=total_price)
+            booking.seats.set(locked_seats)
 
-        return booking
+            # Mark seats as booked
+            for seat in locked_seats:
+                seat.is_booked = True
+                seat.save()
+
+            return booking
+
 
 
 # 🔹 Payment Serializer

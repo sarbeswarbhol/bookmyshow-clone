@@ -72,6 +72,7 @@ class Booking(models.Model):
     seats = models.ManyToManyField(Seat)
     total_price = models.DecimalField(max_digits=8, decimal_places=2)
     created_at = models.DateTimeField(auto_now_add=True)
+    is_cancelled = models.BooleanField(default=False)
 
    
     def __str__(self):
