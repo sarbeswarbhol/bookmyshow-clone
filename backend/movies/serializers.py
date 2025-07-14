@@ -40,7 +40,7 @@ class ReviewSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'movie', 'user', 'rating', 'comment', 'created_at'
         ]
-        read_only_fields = ['user']
+        read_only_fields = ['user', 'movie', 'created_at']
 
 
 

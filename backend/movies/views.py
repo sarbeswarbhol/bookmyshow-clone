@@ -124,37 +124,46 @@ class ReviewListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         return Review.objects.filter(movie__slug=self.kwargs['slug'], is_deleted=False)
 
-    def perform_create(self, serializer):
-        if not self.request.user.is_authenticated:
+    def post(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
             return Response({"detail": "Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
+        return super().post(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
         movie = Movie.objects.get(slug=self.kwargs['slug'])
         serializer.save(user=self.request.user, movie=movie)
 
 class ReviewUpdateView(generics.UpdateAPIView):
+    queryset = Review.objects.filter(is_deleted=False)
     serializer_class = ReviewSerializer
     permission_classes = [IsReviewAuthor]
     lookup_field = 'pk'
 
     def get_queryset(self):
-        return Review.objects.filter(user=self.request.user, movie__slug=self.kwargs['slug'], is_deleted=False)
-
+         return self.queryset.filter(movie__slug=self.kwargs['slug'])
+     
 class ReviewDeleteView(generics.DestroyAPIView):
+    queryset = Review.all_objects.all()
     serializer_class = ReviewSerializer
-    permission_classes = [IsReviewAuthor, IsMovieOwner]
+    permission_classes = [IsReviewAuthor]
     lookup_field = 'pk'
 
     def get_queryset(self):
-        return Review.objects.filter(user=self.request.user, movie__slug=self.kwargs['slug'])
+        return self.queryset.filter(movie__slug=self.kwargs['slug'])
 
     def perform_destroy(self, instance):
         instance.is_deleted = True
         instance.save()
 
     def delete(self, request, *args, **kwargs):
-        instance = self.get_object()
+        try:
+            instance = self.get_object()
+        except Review.DoesNotExist:
+            return Response({"detail": "Review not found or already deleted."}, status=status.HTTP_404_NOT_FOUND)
+
         self.perform_destroy(instance)
         return Response({"message": "Review deleted successfully."}, status=status.HTTP_200_OK)
-
+    
 class ReviewRestoreView(generics.UpdateAPIView):
     queryset = Review.all_objects.all()  # ✅ allows soft-deleted reviews
     serializer_class = ReviewSerializer

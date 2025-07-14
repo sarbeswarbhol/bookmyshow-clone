@@ -1,5 +1,12 @@
 from django.db import models
-from django.conf import settings    
+from django.conf import settings
+from functools import partial
+from .utils import upload_file_with_timestamp
+
+# Create partials with specific folders
+cast_upload_path = partial(upload_file_with_timestamp, folder='cast_profiles/')
+movie_upload_path = partial(upload_file_with_timestamp, folder='movie_posters/')
+ 
 
 class CastMemberManager(models.Manager):
     def get_queryset(self):
@@ -34,7 +41,10 @@ class CastMember(models.Model):
 
     name = models.CharField(max_length=100)
     role = models.CharField(max_length=100, choices=CAST_ROLE_CHOICES)
-    profile_picture = models.ImageField(upload_to='cast_profiles/', blank=True, null=True)
+    profile_picture = models.ImageField(
+        upload_to=cast_upload_path,
+        blank=True, null=True
+    )
     is_deleted = models.BooleanField(default=False)
 
     objects = CastMemberManager()
@@ -52,7 +62,10 @@ class Movie(models.Model):
     rating = models.DecimalField(max_digits=3, decimal_places=1)
     cast = models.ManyToManyField(CastMember, related_name='movies')
     release_date = models.DateField()
-    poster = models.ImageField(upload_to='movie_posters/', null=True, blank=True)
+    poster = models.ImageField(
+        upload_to=movie_upload_path,
+        blank=True, null=True
+    )
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     slug = models.SlugField(max_length=255, unique=True)
     is_deleted = models.BooleanField(default=False)
