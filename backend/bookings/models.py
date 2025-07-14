@@ -37,15 +37,30 @@ def generate_ticket_code():
     return str(uuid.uuid4())[:12].upper()
 
 
+class ShowSeatPricing(models.Model):
+    show = models.ForeignKey(Show, on_delete=models.CASCADE, related_name='seat_pricing')
+    seat_type = models.CharField(max_length=20, choices=SEAT_TYPE_CHOICES)
+    price = models.DecimalField(max_digits=6, decimal_places=2)
+
+    class Meta:
+        unique_together = ('show', 'seat_type')
+
+    def __str__(self):
+        return f"{self.show} - {self.seat_type} - ₹{self.price}"
+
+
 class Seat(models.Model):
     show = models.ForeignKey(Show, on_delete=models.CASCADE, related_name='seats')
     seat_number = models.CharField(max_length=10)  # e.g., A1, B3
     seat_type = models.CharField(max_length=20, choices=SEAT_TYPE_CHOICES, default='regular')
-    price = models.DecimalField(max_digits=6, decimal_places=2)
     is_booked = models.BooleanField(default=False)
 
+    def get_price(self):
+        return ShowSeatPricing.objects.get(show=self.show, seat_type=self.seat_type).price
+
     def __str__(self):
-        return f"{self.seat_number} - {self.show}"
+        return f"{self.seat_number} ({self.seat_type}) - {self.show}"
+
 
 class Booking(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -56,6 +71,7 @@ class Booking(models.Model):
 
     def __str__(self):
         return f"Booking #{self.id} by {self.user.username}"
+
 
 class Payment(models.Model):
     booking = models.OneToOneField(Booking, on_delete=models.CASCADE)
@@ -75,7 +91,7 @@ class Ticket(models.Model):
     ticket_code = models.CharField(max_length=12, unique=True, default=generate_ticket_code)
     issued_at = models.DateTimeField(default=now)
     qr_code = models.ImageField(upload_to='tickets/qr_codes/', blank=True, null=True)
-    
+
     def generate_qr_code(self):
         data = f"Ticket: {self.ticket_code}, Seat: {self.seat.seat_number}, Booking ID: {self.booking.id}"
         qr = qrcode.make(data)
@@ -91,8 +107,8 @@ class Ticket(models.Model):
 
     def __str__(self):
         return f"Ticket {self.ticket_code} - Seat {self.seat.seat_number}"
-    
-    
+
+
 @receiver(post_save, sender=Booking)
 def create_tickets_for_booking(sender, instance, created, **kwargs):
     if created:
