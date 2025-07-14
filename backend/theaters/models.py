@@ -29,7 +29,6 @@ class Show(models.Model):
     theater = models.ForeignKey(Theater, related_name='shows', on_delete=models.CASCADE)
     movie = models.ForeignKey('movies.Movie', related_name='shows', on_delete=models.CASCADE)
     show_time = models.DateTimeField()
-    ticket_price = models.DecimalField(max_digits=6, decimal_places=2)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     is_deleted = models.BooleanField(default=False)
 

@@ -26,7 +26,7 @@ class SoftDeleteAdmin(admin.ModelAdmin):
 # 🔹 Show Admin with Soft Delete Support
 @admin.register(Show)
 class ShowAdmin(SoftDeleteAdmin):
-    list_display = ('movie', 'theater', 'show_time', 'ticket_price', 'created_by', 'is_deleted')
+    list_display = ('movie', 'theater', 'show_time', 'created_by', 'is_deleted')
     list_filter = ('show_time', 'theater', 'movie', 'is_deleted')
     search_fields = ('movie__title', 'theater__name')
 
