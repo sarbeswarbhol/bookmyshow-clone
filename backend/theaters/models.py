@@ -1,12 +1,20 @@
 from django.db import models
 from django.conf import settings
 
+class SoftDeleteManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(is_deleted=False)
+
 class Theater(models.Model):
     name = models.CharField(max_length=255)
     location = models.CharField(max_length=255)
     capacity = models.PositiveIntegerField()
     slug = models.SlugField(max_length=255, unique=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    is_deleted = models.BooleanField(default=False)
+
+    objects = SoftDeleteManager()
+    all_objects = models.Manager()
     
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -23,6 +31,10 @@ class Show(models.Model):
     show_time = models.DateTimeField()
     ticket_price = models.DecimalField(max_digits=6, decimal_places=2)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    is_deleted = models.BooleanField(default=False)
+
+    objects = SoftDeleteManager()
+    all_objects = models.Manager()
 
     def __str__(self):
         return f"{self.movie.title} at {self.theater.name} on {self.show_time.strftime('%Y-%m-%d %H:%M')}"
