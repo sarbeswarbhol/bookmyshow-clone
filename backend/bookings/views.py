@@ -120,3 +120,4 @@ class ShowSeatPricingUpdateView(generics.UpdateAPIView):
         if obj.show.created_by != self.request.user:
             raise PermissionDenied("You do not have permission to update this seat pricing.")
         return obj
+  
