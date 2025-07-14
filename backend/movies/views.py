@@ -140,7 +140,7 @@ class ReviewUpdateView(generics.UpdateAPIView):
 
 class ReviewDeleteView(generics.DestroyAPIView):
     serializer_class = ReviewSerializer
-    permission_classes = [IsReviewAuthor]
+    permission_classes = [IsReviewAuthor, IsMovieOwner]
     lookup_field = 'pk'
 
     def get_queryset(self):
