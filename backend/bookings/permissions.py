@@ -5,7 +5,7 @@ from rest_framework.exceptions import PermissionDenied
 # 🔹 Reusable authentication check mixin
 class RequireAuthenticated:
     def check_auth(self, request):
-        if not request.user.is_authenticated:
+        if not request.user or not request.user.is_authenticated:
             raise PermissionDenied("Authentication required.")
 
 
@@ -13,7 +13,7 @@ class RequireAuthenticated:
 class IsRegularUser(BasePermission, RequireAuthenticated):
     def has_permission(self, request, view):
         self.check_auth(request)
-        if request.user.role != 'user':
+        if getattr(request.user, 'role', None) != 'user':
             raise PermissionDenied("Only regular users can perform this action.")
         return True
 
@@ -24,24 +24,24 @@ class IsBookingOwnerOrReadOnly(BasePermission, RequireAuthenticated):
         self.check_auth(request)
         if request.method in SAFE_METHODS:
             return True
-        if obj.user != request.user and not (request.user.is_staff or request.user.is_superuser):
-            raise PermissionDenied("You do not have permission to modify this booking.")
-        return True
+        if obj.user == request.user or request.user.is_staff or request.user.is_superuser:
+            return True
+        raise PermissionDenied("You do not have permission to modify this booking.")
 
 
 # 🔹 Payment Owner Only (user who made the booking)
 class IsPaymentOwner(BasePermission, RequireAuthenticated):
     def has_object_permission(self, request, view, obj):
         self.check_auth(request)
-        if obj.booking.user != request.user and not (request.user.is_staff or request.user.is_superuser):
-            raise PermissionDenied("You do not have permission to access this payment.")
-        return True
+        if obj.booking.user == request.user or request.user.is_staff or request.user.is_superuser:
+            return True
+        raise PermissionDenied("You do not have permission to access this payment.")
 
 
 # 🔹 Ticket Owner or Admin
 class IsTicketOwner(BasePermission, RequireAuthenticated):
     def has_object_permission(self, request, view, obj):
         self.check_auth(request)
-        if obj.booking.user != request.user and not (request.user.is_staff or request.user.is_superuser):
-            raise PermissionDenied("You do not have permission to access this ticket.")
-        return True
+        if obj.booking.user == request.user or request.user.is_staff or request.user.is_superuser:
+            return True
+        raise PermissionDenied("You do not have permission to access this ticket.")

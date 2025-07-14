@@ -3,15 +3,16 @@ from .models import Seat, Booking, Payment, Ticket, ShowSeatPricing
 from theaters.models import Show
 from django.utils.timezone import now
 from datetime import timedelta
+import uuid
 
-# 🔹 Seat Pricing (optional)
+# 🔹 Show Seat Pricing Serializer
 class ShowSeatPricingSerializer(serializers.ModelSerializer):
     class Meta:
         model = ShowSeatPricing
         fields = ['id', 'show', 'seat_type', 'price']
 
 
-# 🔹 Seat
+# 🔹 Seat Serializer
 class SeatSerializer(serializers.ModelSerializer):
     price = serializers.SerializerMethodField()
 
@@ -26,7 +27,7 @@ class SeatSerializer(serializers.ModelSerializer):
             return None
 
 
-# 🔹 Ticket
+# 🔹 Ticket Serializer
 class TicketSerializer(serializers.ModelSerializer):
     seat = SeatSerializer()
 
@@ -35,7 +36,7 @@ class TicketSerializer(serializers.ModelSerializer):
         fields = ['ticket_code', 'issued_at', 'qr_code', 'seat']
 
 
-# 🔹 Booking
+# 🔹 Booking Serializer
 class BookingSerializer(serializers.ModelSerializer):
     seats = serializers.PrimaryKeyRelatedField(queryset=Seat.objects.all(), many=True)
     tickets = TicketSerializer(many=True, read_only=True)
@@ -49,10 +50,12 @@ class BookingSerializer(serializers.ModelSerializer):
         show = data['show']
         current_time = now()
 
-        if current_time > show.show_time:
+        if current_time > show.end_time:
             raise serializers.ValidationError("Cannot book tickets for a show that has already ended.")
-        if current_time > show.show_time - timedelta(minutes=15):
-            raise serializers.ValidationError("Cannot book tickets within 15 minutes of showtime.")
+
+        if current_time > show.show_time + timedelta(minutes=15):
+            raise serializers.ValidationError("Bookings are closed 15 minutes after show starts.")
+
         return data
 
     def create(self, validated_data):
@@ -60,43 +63,51 @@ class BookingSerializer(serializers.ModelSerializer):
         show = validated_data['show']
         seats = validated_data['seats']
 
-        # Seat validity check
+        # Check seat validity
         for seat in seats:
             if seat.show != show:
                 raise serializers.ValidationError(f"Seat {seat.seat_number} does not belong to this show.")
             if seat.is_booked:
                 raise serializers.ValidationError(f"Seat {seat.seat_number} is already booked.")
 
-        # Total price via ShowSeatPricing
+        # Calculate total price dynamically
         total_price = 0
         for seat in seats:
             try:
                 price = ShowSeatPricing.objects.get(show=show, seat_type=seat.seat_type).price
                 total_price += price
             except ShowSeatPricing.DoesNotExist:
-                raise serializers.ValidationError(f"No price defined for {seat.seat_type} seat in this show.")
+                raise serializers.ValidationError(f"No pricing defined for seat type {seat.seat_type} in this show.")
 
         # Create booking
         booking = Booking.objects.create(user=user, show=show, total_price=total_price)
         booking.seats.set(seats)
 
         # Mark seats as booked
-        for seat in seats:
-            seat.is_booked = True
-            seat.save()
+        Seat.objects.filter(id__in=[seat.id for seat in seats]).update(is_booked=True)
 
         return booking
 
 
-# 🔹 Payment
+# 🔹 Payment Serializer
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
         fields = ['id', 'booking', 'amount', 'status', 'payment_method', 'transaction_id', 'paid_at']
-        read_only_fields = ['status', 'paid_at', 'transaction_id']
+        read_only_fields = ['amount', 'status', 'paid_at', 'transaction_id']
+
+    def create(self, validated_data):
+        booking = validated_data['booking']
+        transaction_id = str(uuid.uuid4()).replace('-', '')[:12].upper()
+        return Payment.objects.create(
+            booking=booking,
+            amount=booking.total_price,
+            transaction_id=transaction_id,
+            **validated_data
+        )
 
     def update(self, instance, validated_data):
-        # Only allow changing status to 'success' or 'failed'
+        # Only allow updating status to 'success' or 'failed'
         status = validated_data.get('status')
         if status and status not in ['success', 'failed']:
             raise serializers.ValidationError("Invalid status. Only 'success' or 'failed' allowed.")
@@ -104,7 +115,6 @@ class PaymentSerializer(serializers.ModelSerializer):
         if status == 'success' and instance.status != 'success':
             instance.status = 'success'
             instance.paid_at = now()
-            instance.transaction_id = validated_data.get('transaction_id', instance.transaction_id)
         elif status == 'failed':
             instance.status = 'failed'
 

@@ -6,6 +6,7 @@ from .serializers import (
     BookingSerializer,
     PaymentSerializer,
     TicketSerializer,
+    ShowSeatPricingSerializer
 )
 from .permissions import (
     IsRegularUser,
@@ -13,10 +14,11 @@ from .permissions import (
     IsPaymentOwner,
     IsTicketOwner
 )
-from django.db.models import Q
+from django.utils.timezone import now
+from rest_framework.exceptions import ValidationError
+import uuid
 
-
-# 🔹 List all available seats for a show
+# 🔹 List available seats for a show
 class SeatListView(generics.ListAPIView):
     serializer_class = SeatSerializer
 
@@ -25,9 +27,8 @@ class SeatListView(generics.ListAPIView):
         return Seat.objects.filter(show_id=show_id, is_booked=False)
 
 
-# 🔹 Book seats for a show
+# 🔹 Create a booking
 class BookingCreateView(generics.CreateAPIView):
-    queryset = Booking.objects.all()
     serializer_class = BookingSerializer
     permission_classes = [permissions.IsAuthenticated, IsRegularUser]
 
@@ -35,7 +36,7 @@ class BookingCreateView(generics.CreateAPIView):
         serializer.save(user=self.request.user)
 
 
-# 🔹 List all bookings by user
+# 🔹 List user bookings
 class BookingListView(generics.ListAPIView):
     serializer_class = BookingSerializer
     permission_classes = [permissions.IsAuthenticated, IsRegularUser]
@@ -44,31 +45,30 @@ class BookingListView(generics.ListAPIView):
         return Booking.objects.filter(user=self.request.user)
 
 
-# 🔹 View/Update/Delete a single booking
+# 🔹 Retrieve/Update/Delete a booking
 class BookingDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Booking.objects.all()
     serializer_class = BookingSerializer
     permission_classes = [permissions.IsAuthenticated, IsBookingOwnerOrReadOnly]
 
 
-# 🔹 Create a payment for a booking
+# 🔹 Create a payment (transaction_id auto-generated)
 class PaymentCreateView(generics.CreateAPIView):
     serializer_class = PaymentSerializer
-    permission_classes = [permissions.IsAuthenticated, IsPaymentOwner]
+    permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
-        booking = serializer.validated_data['booking']
-        serializer.save(amount=booking.total_price)
+        serializer.save()
 
 
-# 🔹 View a specific payment
+# 🔹 View payment details
 class PaymentDetailView(generics.RetrieveAPIView):
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
     permission_classes = [permissions.IsAuthenticated, IsPaymentOwner]
 
 
-# 🔹 View user's tickets
+# 🔹 List user tickets
 class TicketListView(generics.ListAPIView):
     serializer_class = TicketSerializer
     permission_classes = [permissions.IsAuthenticated, IsRegularUser]
@@ -77,8 +77,17 @@ class TicketListView(generics.ListAPIView):
         return Ticket.objects.filter(booking__user=self.request.user)
 
 
-# 🔹 Ticket detail
+# 🔹 Ticket details
 class TicketDetailView(generics.RetrieveAPIView):
     queryset = Ticket.objects.all()
     serializer_class = TicketSerializer
     permission_classes = [permissions.IsAuthenticated, IsTicketOwner]
+
+
+# 🔹 List seat pricing for a show
+class ShowSeatPricingListView(generics.ListAPIView):
+    serializer_class = ShowSeatPricingSerializer
+
+    def get_queryset(self):
+        show_id = self.kwargs['show_id']
+        return ShowSeatPricing.objects.filter(show_id=show_id)
