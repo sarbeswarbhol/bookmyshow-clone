@@ -12,9 +12,9 @@ urlpatterns = [
     path('seats/<int:show_id>/', SeatListView.as_view(), name='available-seats'),
 
     # Bookings
-    path('bookings/', BookingListView.as_view(), name='booking-list'),
-    path('bookings/create/', BookingCreateView.as_view(), name='booking-create'),
-    path('bookings/<int:pk>/', BookingDetailView.as_view(), name='booking-detail'),
+    path('', BookingListView.as_view(), name='booking-list'),
+    path('create/', BookingCreateView.as_view(), name='booking-create'),
+    path('<int:pk>/', BookingDetailView.as_view(), name='booking-detail'),
 
     # Payments
     path('payments/create/', PaymentCreateView.as_view(), name='payment-create'),
