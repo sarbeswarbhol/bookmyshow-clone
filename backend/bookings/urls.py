@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import (
+    CreateBulkSeatView,
     SeatListView,
     BookingCreateView, BookingCancelView, BookingListView, BookingDetailView,
     PaymentCreateView, PaymentDetailView, PaymentUpdateView,
@@ -10,6 +11,7 @@ from .views import (
 urlpatterns = [
     # Seats
     path('seats/<int:show_id>/', SeatListView.as_view(), name='available-seats'),
+    path('seats/bulk-create/<slug:screen_slug>/', CreateBulkSeatView.as_view(), name='bulk-seat-create'),
 
     # Bookings
     path('', BookingListView.as_view(), name='booking-list'),

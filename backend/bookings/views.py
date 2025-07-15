@@ -4,6 +4,8 @@ from rest_framework.exceptions import ValidationError, PermissionDenied
 from rest_framework.response import Response
 from django.utils.timezone import now
 from django.db.models import Q
+from django.shortcuts import get_object_or_404
+from theaters.models import Theater, Screen, Show
 
 from .models import Seat, Booking, Payment, Ticket, ShowSeatPricing, BookedSeat
 from .serializers import (
@@ -18,7 +20,8 @@ from .permissions import (
     IsBookingOwnerOrReadOnly,
     IsPaymentOwner,
     IsTicketOwner,
-    IsTheaterOwnerOfShowSeatPricing
+    IsTheaterOwnerOfShowSeatPricing,
+    IsTheaterOwner
 )
 from theaters.models import Show
 
@@ -159,6 +162,31 @@ class ShowSeatPricingUpdateView(generics.UpdateAPIView):
 
     def get_object(self):
         obj = super().get_object()
-        if obj.show.created_by != self.request.user:
+        if obj.show.screen.theater.created_by != self.request.user:
             raise PermissionDenied("You do not have permission to update this seat pricing.")
         return obj
+
+
+
+
+class CreateBulkSeatView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsTheaterOwner]
+
+    def post(self, request, screen_slug):
+        screen = get_object_or_404(Screen, slug=screen_slug)
+
+        rows = request.data.get("rows")
+        seats_per_row = request.data.get("seats_per_row")
+        seat_type_map = request.data.get("seat_type_map")
+
+        if not rows or not seats_per_row or not seat_type_map:
+            return Response({"detail": "Missing required data."}, status=400)
+
+        seats = []
+        for row_letter, seat_type in seat_type_map.items():
+            for num in range(1, seats_per_row + 1):
+                seat_number = f"{row_letter}{num}"
+                seats.append(Seat(screen=screen, seat_number=seat_number, seat_type=seat_type))
+
+        Seat.objects.bulk_create(seats)
+        return Response({"detail": "Seats created successfully."}, status=201)

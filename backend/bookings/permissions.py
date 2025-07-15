@@ -54,6 +54,18 @@ class IsTicketOwner(BasePermission, RequireAuthenticated):
 class IsTheaterOwnerOfShowSeatPricing(BasePermission, RequireAuthenticated):
     def has_object_permission(self, request, view, obj):
         self.check_auth(request)
-        if obj.show.theater.created_by == request.user or request.user.is_staff or request.user.is_superuser:
+
+        if obj.show.screen.theater.created_by == request.user or request.user.is_staff or request.user.is_superuser:
             return True
+
         raise PermissionDenied("You do not have permission to modify this seat pricing.")
+
+
+class IsTheaterOwner(BasePermission):
+    """
+    Allows access only to theater owners.
+    """
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            raise PermissionDenied("Authentication required.")
+        return getattr(request.user, 'role', None) == 'theater_owner'

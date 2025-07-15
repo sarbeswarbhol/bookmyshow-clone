@@ -19,7 +19,7 @@ class SeatAdmin(admin.ModelAdmin):
     list_filter = ('seat_type', 'screen__theater')
     search_fields = ('seat_number', 'screen__theater__name')
     ordering = ('screen', 'seat_number')
-    autocomplete_fields = ['screen']
+    autocomplete_fields = ['screen',]
 
 
 @admin.register(Booking)

@@ -1,4 +1,5 @@
 from django.urls import path
+from bookings.views import CreateBulkSeatView
 from .views import (
     # Theater views
     TheaterListView, TheaterCreateView, TheaterDetailView, TheaterRestoreView,
@@ -31,6 +32,10 @@ urlpatterns = [
     path('screens/<int:pk>/update/', ScreenUpdateView.as_view(), name='screen-update'),
     path('screens/<int:pk>/delete/', ScreenDeleteView.as_view(), name='screen-delete'),
     path('screens/<int:pk>/restore/', ScreenRestoreView.as_view(), name='screen-restore'),
+    
+    # it came from the bookings app, but it is related to theaters
+    path('screens/<slug:screen_slug>/create-seats/', CreateBulkSeatView.as_view(), name='create-seats'),
+
 
     # 🎬 Shows under Theater
     path('<slug:slug>/shows/', ShowListByTheaterView.as_view(), name='show-list-by-theater'),
