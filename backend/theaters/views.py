@@ -1,20 +1,30 @@
-# theaters/views.py
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
-from .models import Theater, Show
-from .serializers import TheaterSerializer, ShowSerializer
-from .permissions import IsTheaterOwner, IsTheaterOwnerAndCreator
+from .models import Theater, Screen, Show
+from .serializers import TheaterSerializer, ScreenSerializer, ShowSerializer
+from .permissions import (
+    IsTheaterOwner,
+    IsTheaterOwnerAndCreator,
+    IsAdminOrReadOnly,
+    IsTheaterOwnerOrReadOnly
+)
 
+
+# ================================
 # 🎭 Theater Views
+# ================================
+
 class TheaterListView(generics.ListAPIView):
     queryset = Theater.objects.all()
     serializer_class = TheaterSerializer
+    permission_classes = [IsAdminOrReadOnly]
 
 class TheaterDetailView(generics.RetrieveAPIView):
     queryset = Theater.objects.all()
     serializer_class = TheaterSerializer
     lookup_field = 'slug'
+    permission_classes = [IsAdminOrReadOnly]
 
 class TheaterCreateView(generics.CreateAPIView):
     queryset = Theater.objects.all()
@@ -27,14 +37,14 @@ class TheaterCreateView(generics.CreateAPIView):
 class TheaterUpdateView(generics.UpdateAPIView):
     queryset = Theater.objects.all()
     serializer_class = TheaterSerializer
-    permission_classes = [IsTheaterOwnerAndCreator]
     lookup_field = 'slug'
+    permission_classes = [IsTheaterOwnerAndCreator]
 
 class TheaterDeleteView(generics.DestroyAPIView):
     queryset = Theater.all_objects.all()
     serializer_class = TheaterSerializer
-    permission_classes = [IsTheaterOwnerAndCreator]
     lookup_field = 'slug'
+    permission_classes = [IsTheaterOwnerAndCreator]
 
     def perform_destroy(self, instance):
         instance.is_deleted = True
@@ -48,8 +58,8 @@ class TheaterDeleteView(generics.DestroyAPIView):
 class TheaterRestoreView(generics.UpdateAPIView):
     queryset = Theater.all_objects.all()
     serializer_class = TheaterSerializer
-    permission_classes = [IsTheaterOwnerAndCreator]
     lookup_field = 'slug'
+    permission_classes = [IsTheaterOwnerAndCreator]
 
     def update(self, request, *args, **kwargs):
         theater = self.get_object()
@@ -60,12 +70,75 @@ class TheaterRestoreView(generics.UpdateAPIView):
         return Response({"message": "Theater restored successfully."}, status=status.HTTP_200_OK)
 
 
-# 🎬 Show Views (Nested)
-class ShowListByTheaterView(generics.ListAPIView):
-    serializer_class = ShowSerializer
+# ================================
+# 🖥️ Screen Views (Nested under Theater)
+# ================================
+
+class ScreenListByTheaterView(generics.ListAPIView):
+    serializer_class = ScreenSerializer
+    permission_classes = [IsTheaterOwnerOrReadOnly]
 
     def get_queryset(self):
-        return Show.objects.filter(theater__slug=self.kwargs['slug'], is_deleted=False)
+        return Screen.objects.filter(theater__slug=self.kwargs['slug'], is_deleted=False)
+
+class ScreenCreateUnderTheaterView(generics.CreateAPIView):
+    serializer_class = ScreenSerializer
+    permission_classes = [IsTheaterOwner]
+
+    def perform_create(self, serializer):
+        theater = Theater.objects.get(slug=self.kwargs['slug'])
+        if theater.created_by != self.request.user:
+            raise PermissionDenied("You can only create screens for your own theater.")
+        serializer.save(theater=theater, created_by=self.request.user)
+
+class ScreenDetailView(generics.RetrieveAPIView):
+    queryset = Screen.objects.all()
+    serializer_class = ScreenSerializer
+    permission_classes = [IsTheaterOwnerOrReadOnly]
+
+class ScreenUpdateView(generics.UpdateAPIView):
+    queryset = Screen.objects.all()
+    serializer_class = ScreenSerializer
+    permission_classes = [IsTheaterOwnerAndCreator]
+
+class ScreenDeleteView(generics.DestroyAPIView):
+    queryset = Screen.all_objects.all()
+    serializer_class = ScreenSerializer
+    permission_classes = [IsTheaterOwnerAndCreator]
+
+    def perform_destroy(self, instance):
+        instance.is_deleted = True
+        instance.save()
+
+    def delete(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response({"message": "Screen deleted successfully."}, status=status.HTTP_200_OK)
+
+class ScreenRestoreView(generics.UpdateAPIView):
+    queryset = Screen.all_objects.all()
+    serializer_class = ScreenSerializer
+    lookup_field = 'pk'
+    permission_classes = [IsTheaterOwnerAndCreator]
+
+    def update(self, request, *args, **kwargs):
+        screen = self.get_object()
+        if not screen.is_deleted:
+            return Response({"message": "Screen is already active."}, status=status.HTTP_400_BAD_REQUEST)
+        screen.is_deleted = False
+        screen.save()
+        return Response({"message": "Screen restored successfully."}, status=status.HTTP_200_OK)
+
+# ================================
+# 🎬 Show Views (Nested under Theater)
+# ================================
+
+class ShowListByTheaterView(generics.ListAPIView):
+    serializer_class = ShowSerializer
+    permission_classes = [IsTheaterOwnerOrReadOnly]
+
+    def get_queryset(self):
+        return Show.objects.filter(screen__theater__slug=self.kwargs['slug'], is_deleted=False)
 
 class ShowCreateUnderTheaterView(generics.CreateAPIView):
     serializer_class = ShowSerializer
@@ -75,12 +148,15 @@ class ShowCreateUnderTheaterView(generics.CreateAPIView):
         theater = Theater.objects.get(slug=self.kwargs['slug'])
         if theater.created_by != self.request.user:
             raise PermissionDenied("You can only create shows for your own theater.")
-        serializer.save(theater=theater, created_by=self.request.user)
+        screen = serializer.validated_data['screen']
+        if screen.theater != theater:
+            raise PermissionDenied("Selected screen does not belong to this theater.")
+        serializer.save(created_by=self.request.user)
 
-# Flat Show Views for details/edit/delete/restore
 class ShowDetailView(generics.RetrieveAPIView):
     queryset = Show.objects.all()
     serializer_class = ShowSerializer
+    permission_classes = [IsTheaterOwnerOrReadOnly]
 
 class ShowUpdateView(generics.UpdateAPIView):
     queryset = Show.objects.all()
@@ -104,8 +180,8 @@ class ShowDeleteView(generics.DestroyAPIView):
 class ShowRestoreView(generics.UpdateAPIView):
     queryset = Show.all_objects.all()
     serializer_class = ShowSerializer
-    permission_classes = [IsTheaterOwnerAndCreator]
     lookup_field = 'pk'
+    permission_classes = [IsTheaterOwnerAndCreator]
 
     def update(self, request, *args, **kwargs):
         show = self.get_object()
