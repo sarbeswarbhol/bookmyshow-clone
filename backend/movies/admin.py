@@ -25,7 +25,7 @@ class SoftDeleteAdmin(admin.ModelAdmin):
 # 🔹 Movie Admin
 @admin.register(Movie)
 class MovieAdmin(SoftDeleteAdmin):
-    list_display = ('title', 'language', 'genre', 'duration', 'rating', 'release_date', 'created_by', 'is_deleted')
+    list_display = ('title', 'slug', 'language', 'genre', 'duration', 'rating', 'release_date', 'created_by', 'is_deleted')
     search_fields = ('title', 'genre', 'language', 'cast__name')
     list_filter = ('genre', 'language', 'release_date', 'is_deleted')
     autocomplete_fields = ['cast']

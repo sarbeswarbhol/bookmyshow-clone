@@ -6,24 +6,25 @@ from movies.models import Movie
 
 # 🎭 Theater Serializer
 class TheaterSerializer(serializers.ModelSerializer):
+    created_by = serializers.SerializerMethodField()
+
     class Meta:
         model = Theater
         fields = ['id', 'name', 'location', 'slug', 'created_by']
         read_only_fields = ['slug', 'created_by']
 
+    def get_created_by(self, obj):
+        return obj.created_by.username
+
 
 # 🖥️ Screen Serializer
 class ScreenSerializer(serializers.ModelSerializer):
     theater = serializers.StringRelatedField(read_only=True)
-    theater_id = serializers.PrimaryKeyRelatedField(
-        queryset=Theater.objects.filter(is_deleted=False),
-        source='theater',
-        write_only=True
-    )
+
 
     class Meta:
         model = Screen
-        fields = ['id', 'name', 'slug', 'theater', 'theater_id', 'created_by']
+        fields = ['id', 'name', 'slug', 'theater', 'created_by']
         read_only_fields = ['slug', 'created_by']
 
 
@@ -35,8 +36,12 @@ class ShowSerializer(serializers.ModelSerializer):
         source='movie',
         write_only=True
     )
+    created_by = serializers.SerializerMethodField()
 
     class Meta:
         model = Show
         fields = ['id', 'screen', 'movie', 'movie_id', 'show_time', 'created_by']
         read_only_fields = ['created_by']
+
+    def get_created_by(self, obj):
+        return obj.created_by.username

@@ -12,12 +12,16 @@ class CastMemberSerializer(serializers.ModelSerializer):
 
 class MovieSerializer(serializers.ModelSerializer):
     cast = CastMemberSerializer(many=True, read_only=True)
+    created_by = serializers.CharField(source='created_by.username', read_only=True)
+
     class Meta:
         model = Movie
         fields = [
             'id', 'title', 'slug', 'description', 'language', 'genre',
-            'duration', 'rating', 'cast', 'release_date', 'poster'
+            'duration', 'rating', 'cast', 'release_date', 'poster',
+            'created_by'
         ]
+        read_only_fields = ['slug', 'created_by_id', 'created_by_username']
 
 
 class MovieCreateUpdateSerializer(serializers.ModelSerializer):
@@ -34,14 +38,25 @@ class MovieCreateUpdateSerializer(serializers.ModelSerializer):
     
 
 class ReviewSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField(read_only=True)
+    user_id = serializers.IntegerField(source='user.id', read_only=True)
+    username = serializers.CharField(source='user.username', read_only=True)
+
+    movie_id = serializers.IntegerField(source='movie.id', read_only=True)
+    movie_title = serializers.CharField(source='movie.title', read_only=True)
+
     class Meta:
         model = Review
         fields = [
-            'id', 'movie', 'user', 'rating', 'comment', 'created_at'
+            'id',
+            'movie_id',
+            'movie_title',
+            'user_id',
+            'username',
+            'rating',
+            'comment',
+            'created_at',
         ]
-        read_only_fields = ['user', 'movie', 'created_at']
-
+        read_only_fields = ['user_id', 'username', 'movie_id', 'movie_title', 'created_at']
 
 
 class CastMemberDetailSerializer(serializers.ModelSerializer):

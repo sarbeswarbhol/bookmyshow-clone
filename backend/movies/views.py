@@ -1,4 +1,5 @@
 from rest_framework import generics, status
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from .models import Movie, CastMember, Review
 from .serializers import (
@@ -131,6 +132,11 @@ class ReviewListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         movie = Movie.objects.get(slug=self.kwargs['slug'])
+        user = self.request.user
+
+    # Check if user already reviewed this movie
+        if Review.objects.filter(user=user, movie=movie, is_deleted=False).exists():
+            raise ValidationError("You have already submitted a review for this movie.")
         serializer.save(user=self.request.user, movie=movie)
 
 class ReviewUpdateView(generics.UpdateAPIView):

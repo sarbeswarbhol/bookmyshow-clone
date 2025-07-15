@@ -34,14 +34,14 @@ class ShowAdmin(SoftDeleteAdmin):
 # 🔹 Theater Admin with Soft Delete Support
 @admin.register(Theater)
 class TheaterAdmin(SoftDeleteAdmin):
-    list_display = ('name', 'location', 'created_by', 'is_deleted')
+    list_display = ('name', 'slug', 'location', 'created_by', 'is_deleted')
     search_fields = ('name', 'location')
     list_filter = ('location', 'is_deleted')
     prepopulated_fields = {"slug": ("name",)}
     
 @admin.register(Screen)
 class ScreenAdmin(SoftDeleteAdmin):
-    list_display = ('name', 'theater', 'created_by', 'is_deleted')
+    list_display = ('name', 'slug', 'theater', 'created_by', 'is_deleted')
     search_fields = ('name', 'theater__name')
     list_filter = ('theater', 'is_deleted')
     prepopulated_fields = {"slug": ("name",)}
