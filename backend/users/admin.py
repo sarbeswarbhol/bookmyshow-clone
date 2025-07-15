@@ -7,12 +7,13 @@ class CustomUserAdmin(UserAdmin):
     model = User
 
     list_display = (
-        'username', 'email', 'role', 'phone', 'is_staff', 'is_superuser', 'profile_pic_preview'
+        'username', 'email', 'gender', 'role', 'phone', 'is_staff', 'is_superuser', 'profile_pic_preview'
     )
-    list_filter = ('role', 'is_staff', 'is_superuser', 'is_active')
+    list_filter = ('role', 'gender', 'is_staff', 'is_superuser', 'is_active')
     search_fields = ('username', 'email', 'phone')
     ordering = ('username',)
 
+    # 👇 Additional fields shown in "edit user" admin page
     fieldsets = UserAdmin.fieldsets + (
         ("Additional Info", {
             'fields': (
@@ -20,12 +21,13 @@ class CustomUserAdmin(UserAdmin):
                 'phone',
                 'location',
                 'date_of_birth',
+                'gender',
                 'profile_picture',
             )
         }),
     )
 
-    # 👇 Add this block for admin "Add user" page
+    # 👇 Fields shown in "add user" page
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
@@ -40,6 +42,7 @@ class CustomUserAdmin(UserAdmin):
                 'is_superuser',
                 'location',
                 'date_of_birth',
+                'gender',
                 'profile_picture',
             ),
         }),
@@ -49,7 +52,6 @@ class CustomUserAdmin(UserAdmin):
         if obj.profile_picture:
             return format_html(f'<img src="{obj.profile_picture.url}" width="40" height="40" style="border-radius:50%;" />')
         return "—"
-
     profile_pic_preview.short_description = 'Profile'
 
     def save_model(self, request, obj, form, change):
