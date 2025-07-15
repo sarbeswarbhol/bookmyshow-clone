@@ -7,6 +7,8 @@ from .utils import upload_file_with_timestamp
 cast_upload_path = partial(upload_file_with_timestamp, folder='cast_profiles/')
 movie_upload_path = partial(upload_file_with_timestamp, folder='movie_posters/')
  
+ 
+# All CastMember, Movie, and Review models will use these managers
 
 class CastMemberManager(models.Manager):
     def get_queryset(self):
@@ -19,6 +21,9 @@ class MovieManager(models.Manager):
 class ReviewManager(models.Manager):
     def get_queryset(self):
         return super().get_queryset().filter(is_deleted=False)
+
+
+# Models for the movie application
 
 class CastMember(models.Model):
     CAST_ROLE_CHOICES = [

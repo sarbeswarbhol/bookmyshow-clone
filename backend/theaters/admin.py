@@ -1,5 +1,5 @@
 from django.contrib import admin, messages
-from .models import Show, Theater
+from .models import Show, Theater, Screen
 
 # 🔹 Generic SoftDeleteAdmin base class
 class SoftDeleteAdmin(admin.ModelAdmin):
@@ -26,15 +26,23 @@ class SoftDeleteAdmin(admin.ModelAdmin):
 # 🔹 Show Admin with Soft Delete Support
 @admin.register(Show)
 class ShowAdmin(SoftDeleteAdmin):
-    list_display = ('movie', 'theater', 'show_time', 'created_by', 'is_deleted')
-    list_filter = ('show_time', 'theater', 'movie', 'is_deleted')
-    search_fields = ('movie__title', 'theater__name')
+    list_display = ('movie', 'screen', 'show_time', 'created_by', 'is_deleted')
+    list_filter = ('show_time', 'screen__theater', 'movie', 'is_deleted')
+    search_fields = ('movie__title', 'screen__theater__name')
 
 
 # 🔹 Theater Admin with Soft Delete Support
 @admin.register(Theater)
 class TheaterAdmin(SoftDeleteAdmin):
-    list_display = ('name', 'location', 'capacity', 'created_by', 'is_deleted')
+    list_display = ('name', 'location', 'created_by', 'is_deleted')
     search_fields = ('name', 'location')
     list_filter = ('location', 'is_deleted')
     prepopulated_fields = {"slug": ("name",)}
+    
+@admin.register(Screen)
+class ScreenAdmin(SoftDeleteAdmin):
+    list_display = ('name', 'theater', 'created_by', 'is_deleted')
+    search_fields = ('name', 'theater__name')
+    list_filter = ('theater', 'is_deleted')
+    prepopulated_fields = {"slug": ("name",)}
+    

@@ -4,16 +4,28 @@ from io import BytesIO
 from django.core.files import File
 from django.db import models
 from django.conf import settings
-from theaters.models import Show
+from theaters.models import Show, Screen
 from django.utils.timezone import now
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+
+# ---------------------- CHOICES ----------------------
 
 SEAT_TYPE_CHOICES = [
     ('regular', 'Regular'),
     ('vip', 'VIP'),
     ('premium', 'Premium'),
 ]
+
+BOOKING_STATUS_CHOICES = [
+    ('pending', 'Pending'),
+    ('confirmed', 'Confirmed'),
+    ('cancelled_user', 'Cancelled by User'),
+    ('cancelled_system', 'Cancelled by System'),
+    ('expired', 'Expired (Unpaid)'),
+    ('refunded', 'Refunded'),
+]
+
 
 PAYMENT_STATUS_CHOICES = [
     ('pending', 'Pending'),
@@ -33,9 +45,12 @@ PAYMENT_METHOD_CHOICES = [
     ('cash', 'Cash'),
 ]
 
+# ---------------------- HELPERS ----------------------
+
 def generate_ticket_code():
     return str(uuid.uuid4())[:12].upper()
 
+# ---------------------- MODELS ----------------------
 
 class ShowSeatPricing(models.Model):
     show = models.ForeignKey(Show, on_delete=models.CASCADE, related_name='seat_pricing')
@@ -50,20 +65,17 @@ class ShowSeatPricing(models.Model):
 
 
 class Seat(models.Model):
-    show = models.ForeignKey(Show, on_delete=models.CASCADE, related_name='seats')
-    seat_number = models.CharField(max_length=10)  # e.g., A1, B3
-    seat_type = models.CharField(max_length=20, choices=SEAT_TYPE_CHOICES, default='regular')
-    is_booked = models.BooleanField(default=False)
+    screen = models.ForeignKey(Screen, related_name='seats', on_delete=models.CASCADE)
+    seat_number = models.CharField(max_length=10)
+    seat_type = models.CharField(max_length=20, choices=SEAT_TYPE_CHOICES)
 
-    def get_price(self):
-        pricing = ShowSeatPricing.objects.filter(show=self.show, seat_type=self.seat_type).first()
-        if pricing:
-            return pricing.price
-        return 0 
-
+    def get_price(self, show):
+        pricing = ShowSeatPricing.objects.filter(show=show, seat_type=self.seat_type).first()
+        return pricing.price if pricing else 0
 
     def __str__(self):
-        return f"{self.seat_number} ({self.seat_type}) - {self.show}"
+        return f"{self.seat_number} ({self.seat_type}) - {self.screen.theater.name} - {self.screen.name}"
+
 
 
 class Booking(models.Model):
@@ -71,12 +83,25 @@ class Booking(models.Model):
     show = models.ForeignKey(Show, on_delete=models.CASCADE)
     seats = models.ManyToManyField(Seat)
     total_price = models.DecimalField(max_digits=8, decimal_places=2)
+    status = models.CharField(max_length=20, choices=BOOKING_STATUS_CHOICES, default='pending')
+    booked_at = models.DateTimeField(auto_now_add=True)
     created_at = models.DateTimeField(auto_now_add=True)
     is_cancelled = models.BooleanField(default=False)
 
-   
     def __str__(self):
         return f"Booking #{self.id} by {self.user.username}"
+
+
+class BookedSeat(models.Model):
+    show = models.ForeignKey(Show, on_delete=models.CASCADE, related_name='booked_seats')
+    seat = models.ForeignKey(Seat, on_delete=models.CASCADE, related_name='booked_seats')
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='booked_seats')
+
+    class Meta:
+        unique_together = ('show', 'seat')
+
+    def __str__(self):
+        return f"Booked {self.seat} for {self.booking}"
 
 
 class Payment(models.Model):
@@ -94,12 +119,16 @@ class Payment(models.Model):
 class Ticket(models.Model):
     booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='tickets')
     seat = models.ForeignKey(Seat, on_delete=models.CASCADE)
+    show = models.ForeignKey(Show, on_delete=models.CASCADE)
     ticket_code = models.CharField(max_length=12, unique=True, default=generate_ticket_code)
     issued_at = models.DateTimeField(default=now)
     qr_code = models.ImageField(upload_to='tickets/qr_codes/', blank=True, null=True)
 
+    class Meta:
+        unique_together = ('booking', 'seat')
+
     def generate_qr_code(self):
-        data = f"Ticket: {self.ticket_code}, Seat: {self.seat.seat_number}, Booking ID: {self.booking.id}"
+        data = f"Ticket: {self.ticket_code}, Show: {self.show.id}, Seat: {self.seat.seat_number}, Booking ID: {self.booking.id}"
         qr = qrcode.make(data)
         buffer = BytesIO()
         qr.save(buffer, format='PNG')
@@ -107,6 +136,8 @@ class Ticket(models.Model):
         self.qr_code.save(filename, File(buffer), save=False)
 
     def save(self, *args, **kwargs):
+        if not self.show_id:
+            self.show = self.booking.show
         if not self.qr_code:
             self.generate_qr_code()
         super().save(*args, **kwargs)
@@ -114,9 +145,11 @@ class Ticket(models.Model):
     def __str__(self):
         return f"Ticket {self.ticket_code} - Seat {self.seat.seat_number}"
 
+# ---------------------- SIGNALS ----------------------
 
-@receiver(post_save, sender=Booking)
-def create_tickets_for_booking(sender, instance, created, **kwargs):
-    if created:
-        for seat in instance.seats.all():
-            Ticket.objects.create(booking=instance, seat=seat)
+@receiver(post_save, sender=Payment)
+def create_tickets_after_payment(sender, instance, created, **kwargs):
+    booking = instance.booking
+    if instance.status == 'success' and not booking.tickets.exists():
+        for seat in booking.seats.all():
+            Ticket.objects.create(booking=booking, seat=seat, show=booking.show)

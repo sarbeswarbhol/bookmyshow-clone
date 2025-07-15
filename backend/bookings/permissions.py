@@ -2,17 +2,17 @@ from rest_framework.permissions import BasePermission, SAFE_METHODS
 from rest_framework.exceptions import PermissionDenied
 
 
-# 🔹 Reusable authentication check mixin
+# 🔹 Mixin for authentication enforcement
 class RequireAuthenticated:
     """
-    Mixin for enforcing authentication manually in permission classes.
+    Mixin for enforcing authentication in permission classes.
     """
     def check_auth(self, request):
         if not request.user or not request.user.is_authenticated:
             raise PermissionDenied("Authentication required.")
 
 
-# 🔹 Regular authenticated user (role: user)
+# 🔹 Regular user with role 'user' only
 class IsRegularUser(BasePermission, RequireAuthenticated):
     def has_permission(self, request, view):
         self.check_auth(request)
@@ -21,7 +21,7 @@ class IsRegularUser(BasePermission, RequireAuthenticated):
         return True
 
 
-# 🔹 Booking Owner or Read-Only
+# 🔹 Booking owner or read-only
 class IsBookingOwnerOrReadOnly(BasePermission, RequireAuthenticated):
     def has_object_permission(self, request, view, obj):
         self.check_auth(request)
@@ -32,7 +32,7 @@ class IsBookingOwnerOrReadOnly(BasePermission, RequireAuthenticated):
         raise PermissionDenied("You do not have permission to modify this booking.")
 
 
-# 🔹 Payment Owner Only (user who made the booking)
+# 🔹 Only booking owner can access the payment
 class IsPaymentOwner(BasePermission, RequireAuthenticated):
     def has_object_permission(self, request, view, obj):
         self.check_auth(request)
@@ -41,7 +41,7 @@ class IsPaymentOwner(BasePermission, RequireAuthenticated):
         raise PermissionDenied("You do not have permission to access this payment.")
 
 
-# 🔹 Ticket Owner or Admin
+# 🔹 Only ticket owner or admin
 class IsTicketOwner(BasePermission, RequireAuthenticated):
     def has_object_permission(self, request, view, obj):
         self.check_auth(request)
@@ -49,14 +49,11 @@ class IsTicketOwner(BasePermission, RequireAuthenticated):
             return True
         raise PermissionDenied("You do not have permission to access this ticket.")
 
+
+# 🔹 Only theater owner (via show) can set/update pricing
 class IsTheaterOwnerOfShowSeatPricing(BasePermission, RequireAuthenticated):
-    """
-    Allows only the owner of the theater (via show) or staff/superuser.
-    """
     def has_object_permission(self, request, view, obj):
         self.check_auth(request)
-
         if obj.show.theater.created_by == request.user or request.user.is_staff or request.user.is_superuser:
             return True
-
-        raise PermissionDenied("You do not have permission to access or modify this seat pricing.")
+        raise PermissionDenied("You do not have permission to modify this seat pricing.")
