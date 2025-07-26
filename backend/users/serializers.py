@@ -27,7 +27,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         validated_data.pop('password2')
         password = validated_data.pop('password')
-        profile_picture = validated_data.pop('profile_picture', None)
+        profile_picture = validated_data.pop('profile_picture')
         username = validated_data.get('username')
 
         user = User(**validated_data)
@@ -112,7 +112,7 @@ class LoginSerializer(serializers.Serializer):
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
-    profile_picture = serializers.SerializerMethodField()
+    profile_picture = serializers.ImageField(required=False)
 
     class Meta:
         model = User

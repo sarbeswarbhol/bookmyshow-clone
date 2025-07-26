@@ -91,6 +91,8 @@ class BookingCancelView(APIView):
 
         # Release seats
         BookedSeat.objects.filter(booking=booking).delete()
+        
+        Ticket.objects.filter(booking=booking).delete()
 
         return Response({"detail": "Booking cancelled and seats released."}, status=200)
 

@@ -36,6 +36,7 @@ class UserProfileView(APIView):
         return Response(serializer.data)
 
     def put(self, request):
+        print(request.data)
         serializer = UserProfileSerializer(
             request.user, data=request.data, partial=True, context={'request': request}
         )

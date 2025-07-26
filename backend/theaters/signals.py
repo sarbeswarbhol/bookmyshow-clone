@@ -22,11 +22,11 @@ def setup_show_seating_and_pricing(sender, instance, created, **kwargs):
             price=price
         )
 
-        # Create seats
+        # Create seats under the screen
         for i in range(1, count + 1):
             seat_number = f"{row_prefix}{i}"
             Seat.objects.create(
-                show=instance,
+                screen=instance.screen,  # ✅ correct field
                 seat_number=seat_number,
                 seat_type=seat_type
             )

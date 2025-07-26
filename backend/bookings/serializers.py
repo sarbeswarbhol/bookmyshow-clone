@@ -160,9 +160,16 @@ class PaymentSerializer(serializers.ModelSerializer):
         if status == 'success':
             instance.status = 'success'
             instance.paid_at = now()
+            instance.save()
+
+            # 🔥 Update the related booking status to "confirmed"
+            booking = instance.booking
+            booking.status = 'confirmed'
+            booking.save()
+
         elif status == 'failed':
             instance.status = 'failed'
+            instance.save()
 
-        instance.save()
         return instance
 
